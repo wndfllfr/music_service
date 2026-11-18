@@ -1,4 +1,3 @@
-
 # Модель музыкального произведения
 
 music_data = [
@@ -11,7 +10,8 @@ music_data = [
         "release_year": 2020,
         "bpm": 110,
         "rating": 9.2,
-        "plays_count": 15000
+        "plays_count": 15000,
+        "is_deleted": False
     },
     {
         "id": 2,
@@ -22,7 +22,8 @@ music_data = [
         "release_year": 2022,
         "bpm": 120,
         "rating": 8.5,
-        "plays_count": 25000
+        "plays_count": 25000,
+        "is_deleted": False
     },
     {
         "id": 3,
@@ -33,7 +34,8 @@ music_data = [
         "release_year": 2019,
         "bpm": 80,
         "rating": 9.7,
-        "plays_count": 8000
+        "plays_count": 8000,
+        "is_deleted": False
     },
     {
         "id": 4,
@@ -44,6 +46,11 @@ music_data = [
         "release_year": 2021,
         "bpm": 135,
         "rating": 8.9,
-        "plays_count": 18000
+        "plays_count": 18000,
+        "is_deleted": False
+
     }
 ]
+
+# Данные для задания на верификацию
+disease_data = []

@@ -1,7 +1,13 @@
-from flask import Flask, jsonify
+import hashlib
+import re
+
+from flask import Flask, jsonify, request
 from flasgger import Swagger
-from models import music_data
-from flask import request
+from models import music_data, disease_data
+
+app = Flask(__name__)
+
+VERIFY_TOKEN = 'TUSUR-VASILEVA-20261110-5D238A8A'
 
 app = Flask(__name__)
 
@@ -133,7 +139,8 @@ def add_music():
 
     new_music = {
         "id": max((music["id"] for music in music_data), default=0) + 1,
-        **{field: data[field] for field in required_fields}
+        **{field: data[field] for field in required_fields},
+        "is_deleted": False
     }
 
     music_data.append(new_music)
@@ -182,8 +189,7 @@ def update_music(music_id):
 
 @app.route("/api/music/<int:music_id>", methods=["DELETE"])
 def delete_music(music_id):
-    """
-    Удаление музыкального произведения
+    """Мягкое удаление музыкального произведения.
     ---
     tags:
       - Музыкальные произведения
@@ -192,24 +198,45 @@ def delete_music(music_id):
         in: path
         type: integer
         required: true
-        description: ID удаляемого произведения
+      - name: confirm
+        in: query
+        type: boolean
+        required: true
+        description: Подтверждение удаления
     responses:
       200:
-        description: Произведение удалено
+        description: Произведение перемещено в удалённые
+      400:
+        description: Необходимо подтвердить удаление
       404:
         description: Произведение не найдено
     """
-    for music in music_data:
-        if music["id"] == music_id:
-            music_data.remove(music)
-            return jsonify({
-                "message": "Музыкальное произведение удалено",
-                "id": music_id
-            }), 200
+
+    music = next(
+        (
+            item for item in music_data
+            if item["id"] == music_id
+            and not item.get("is_deleted", False)
+        ),
+        None
+    )
+
+    if music is None:
+        return jsonify({"error": "Произведение не найдено"}), 404
+
+    if request.args.get("confirm", "").lower() != "true":
+        return jsonify({
+            "message": "Подтвердите удаление, добавив параметр confirm=true",
+            "id": music_id
+        }), 400
+
+    music["is_deleted"] = True
 
     return jsonify({
-        "error": "Музыкальное произведение не найдено"
-    }), 404
+        "message": "Произведение успешно перемещено в удалённые",
+        "id": music_id,
+        "is_deleted": True
+    }), 200
 
 
 @app.route("/api/music/sort", methods=["GET"])
@@ -332,6 +359,73 @@ def info():
         "description": "API для работы с музыкальными произведениями"
     })
 
+def normalize_text(text: str) -> str:
+    lines = [line.strip() for line in text.split('\n')]
+    lines = [line for line in lines if line]
+    lines = [re.sub(r'\s+', ' ', line) for line in lines]
+    return '\n'.join(lines)
+
+
+@app.route("/api/disease/", methods=["POST"])
+def add_disease():
+    data = request.get_json()
+
+    if not data:
+        return jsonify({"error": "Не переданы данные"}), 400
+
+    required_fields = [
+        "country", "disease", "date",
+        "sick", "recovered", "deaths"
+    ]
+
+    if not all(field in data for field in required_fields):
+        return jsonify({"error": "Не все поля заполнены"}), 400
+
+    new_disease = {
+        "id": len(disease_data) + 1,
+        **{field: data[field] for field in required_fields}
+    }
+
+    disease_data.append(new_disease)
+
+    return jsonify(new_disease), 201
+
+
+@app.route("/api/disease/", methods=["GET"])
+def get_diseases():
+    return jsonify(disease_data), 200
+
+
+@app.route("/api/disease/<int:disease_id>", methods=["GET"])
+def get_disease_by_id(disease_id):
+    disease = next(
+        (item for item in disease_data if item["id"] == disease_id),
+        None
+    )
+
+    if disease is None:
+        return jsonify({"error": "Запись не найдена"}), 404
+
+    return jsonify(disease), 200
+
+
+@app.after_request
+def add_verify_hash(response):
+    if (
+        request.method == "GET"
+        and re.match(r"^/api/disease/(?:\d+)?/?$", request.path)
+        and response.status_code == 200
+    ):
+        body = response.get_data(as_text=True)
+        normalized = normalize_text(body)
+
+        body_hash = hashlib.sha256(
+            normalized.encode("utf-8")
+        ).hexdigest()
+
+        response.headers["X-Verify-Hash"] = body_hash
+
+    return response
 
 if __name__ == "__main__":
     app.run(debug=True)

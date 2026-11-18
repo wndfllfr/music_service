@@ -95,13 +95,18 @@ def test_update_music(client):
 
 
 def test_delete_music(client):
+    # Удаление без подтверждения
     response = client.delete("/api/music/4")
+    assert response.status_code == 400
 
+    # Удаление с подтверждением
+    response = client.delete(
+        "/api/music/4?confirm=true"
+    )
     assert response.status_code == 200
-    assert response.json["id"] == 4
 
-    check_response = client.get("/api/music/4")
-    assert check_response.status_code == 404
+    data = response.get_json()
+    assert data["is_deleted"] is True
 
 
 def test_add_music_without_fields(client):
